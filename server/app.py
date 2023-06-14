@@ -97,5 +97,15 @@ def save_segment_points():
     return {"message": "Points saved", "masked_image": masked_image}, 200
 
 
+@app.route('/apply_texture', methods=['POST'])
+def apply_texture():
+    masked_image = request.json['masked_image']
+    sessionId = request.json['sessionId']
+    texture = request.json['texture']
+    
+    ## TODO: apply texture to masked image
+    return {"message": ""}, 200
+
+
 if __name__ == "__main__":
     app.run(host='127.0.0.1', port='5001', debug=True)
