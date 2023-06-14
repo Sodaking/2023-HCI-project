@@ -90,16 +90,17 @@ def save_segment_points():
         draw.ellipse((point['x']-5, point['y']-5, point['x']+5, point['y']+5), fill=color, outline=color)
     image.save(f'{sessionId}/interior_with_points.png')
 
-    masked_image = image_processor.segment_image_with_point(sessionId, points)
+    masked_image, mask_image = image_processor.segment_image_with_point(sessionId, points)
     masked_image = encode_image_to_base64(masked_image)
+    mask_image = encode_image_to_base64(mask_image)
     # image.save(f'{sessionId}/segment_points.png')
 
-    return {"message": "Points saved", "masked_image": masked_image}, 200
+    return {"message": "Points saved", "masked_image": masked_image, "mask_image": mask_image}, 200
 
 
 @app.route('/apply_texture', methods=['POST'])
 def apply_texture():
-    masked_image = request.json['masked_image']
+    mask_image = request.json['mask_image']
     sessionId = request.json['sessionId']
     texture = request.json['texture']
     

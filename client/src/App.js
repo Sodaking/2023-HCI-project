@@ -95,7 +95,7 @@ const App = () => {
       console.log(response.data.message);
       setInteriorOptions(interiorOptions.map((option) => {
         if (option.id === addOptionState.id) {
-          return {...option, image: response.data.masked_image, points: points, }
+          return {...option, masked_image: response.data.masked_image, mask_image: response.data.mask_image, points: points, }
         } else {
           return option
         }
@@ -133,7 +133,6 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    console.log(interiorOptions)
     if (mainImage == null) {
       if (image == 'interior') {
         setMainImage(interiorImage);
@@ -142,48 +141,48 @@ const App = () => {
       }
       return;
     }
-    
-    const img = new Image();
-    img.src = mainImage.src;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvasSize.width, canvasSize.height);
 
+    const centerX = canvasSize.width / 2;
+    const centerY = canvasSize.height / 2;
+
+    const img = new Image();
+    img.src = mainImage.src;
     img.onload = () => {
-
-      const centerX = canvasSize.width / 2;
-      const centerY = canvasSize.height / 2;
-
       // 이미지의 가로세로 비율에 맞게 사이즈를 조정
       const newWidth = img.width * imageRatio;
       const newHeight = img.height * imageRatio;
 
-      ctx.clearRect(0, 0, canvasSize.width, canvasSize.height);
       ctx.drawImage(img, centerX - newWidth/2, centerY - newHeight/2, newWidth, newHeight);
-      for (let point of points) {
-        // 이미지 중심점 계산
-        const imageCenterX = img.width / 2;
-        const imageCenterY = img.height / 2;
-
-        // 이미지에서의 상대적인 좌표 계산
-        const relativeX = (point.x - imageCenterX) * imageRatio;
-        const relativeY = (point.y - imageCenterY) * imageRatio;
-
-        // canvas에서의 실제 좌표 계산
-        const canvasX = centerX + relativeX;
-        const canvasY = centerY + relativeY;
-
-        ctx.beginPath();
-        ctx.arc(canvasX, canvasY, radius, 0, 2 * Math.PI, false);
-        if (point.mode === 1) {
-          ctx.fillStyle = '#00FF00';
-        } else if (point.mode === 0) {
-          ctx.fillStyle = '#FF0000';
+      if (addOptionState.mode == 'point') {
+        for (let point of points) {
+          // 이미지 중심점 계산
+          const imageCenterX = img.width / 2;
+          const imageCenterY = img.height / 2;
+  
+          // 이미지에서의 상대적인 좌표 계산
+          const relativeX = (point.x - imageCenterX) * imageRatio;
+          const relativeY = (point.y - imageCenterY) * imageRatio;
+  
+          // canvas에서의 실제 좌표 계산
+          const canvasX = centerX + relativeX;
+          const canvasY = centerY + relativeY;
+  
+          ctx.beginPath();
+          ctx.arc(canvasX, canvasY, radius, 0, 2 * Math.PI, false);
+          if (point.mode === 1) {
+            ctx.fillStyle = '#00FF00';
+          } else if (point.mode === 0) {
+            ctx.fillStyle = '#FF0000';
+          }
+          ctx.fill();
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = '#003300';
+          ctx.stroke();
         }
-        ctx.fill();
-        ctx.lineWidth = 1;
-        ctx.strokeStyle = '#003300';
-        ctx.stroke();
       }
       // for (let line of lines) {
       //   ctx.beginPath();
@@ -192,6 +191,18 @@ const App = () => {
       //   ctx.stroke();
       // }
     };
+    for (let option of interiorOptions) {
+      if (option.mask_image != null) {
+        const img = new Image();
+        img.src = option.mask_image;
+        img.onload = () => {
+          // 이미지의 가로세로 비율에 맞게 사이즈를 조정
+          const newWidth = img.width * imageRatio;
+          const newHeight = img.height * imageRatio;
+          ctx.drawImage(img, centerX - newWidth/2, centerY - newHeight/2, newWidth, newHeight);
+        }
+      }
+    }
   }, [image, mainImage, samImage, interiorOptions, points]);
   // }, [lines, image, samImage, interiorImage]);
 
@@ -213,7 +224,7 @@ const App = () => {
     const newInteriorOptions = await Promise.all(interiorOptions.map(async (option) => {
       if (option.id == id) {
         try {
-          const response = await axios.post('/apply_texture', { masked_image : option.image, texture : texture, sessionId : sessionId });
+          const response = await axios.post('/apply_texture', { mask_image : option.mask_image, texture : texture, sessionId : sessionId });
           console.log(response.data.message)
           // const sam_image = new Image();
           // sam_image.src = response.data.sam_result;
@@ -298,13 +309,13 @@ const App = () => {
           <h2>Interior</h2>
           <input type="text" value={newOptionName} onChange={(e) => setNewOptionName(e.target.value)} />
           <button onClick={addOption}>Add Option</button>
-          {interiorOptions.map(({id, name, image, texture}, i) => (
+          {interiorOptions.map(({id, name, mask_image, texture}, i) => (
             <div style={boxStyle} key={id}>
               <h3>{name}</h3>
                 {
-                  image ? 
+                  mask_image ? 
                   <div style={{display: "flex", alignItems: "center"}}>
-                    <img key={id+'segment'} src={image} style={{ width: "100px", height: "100px", objectFit: "cover", margin:"3px" }} />
+                    <img key={id+'segment'} src={mask_image} style={{ width: "100px", height: "100px", objectFit: "cover", margin:"3px" }} />
                     <p style={{margin: "0 20px"}}>+</p>
                     {texture ?
                     <img key={id+'texture'} src={texture} style={{ width: "100px", height: "100px", objectFit: "cover", margin:"3px" }} />:

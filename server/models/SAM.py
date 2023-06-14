@@ -64,4 +64,4 @@ class ImageProcessor:
             result_image_uint8 = (result_image * 255).astype(np.uint8)
             pil_image = Image.fromarray(result_image_uint8)
             pil_image.save(f'{sessionId}/result_with_point_{i}.png')
-        return masked_image_uint8
+        return masked_image_uint8, mask_image_uint8
