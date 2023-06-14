@@ -14,6 +14,7 @@ const boxStyle = {
 const App = () => {
   // const [sessionId, setSessionId] = useState(uuidv4().toString());
   const sessionId = "test";
+
   const [image, setImage] = useState(null);
   const [mainImage, setMainImage] = useState(null);
   const [interiorImage, setInteriorImage] = useState(null);
@@ -23,7 +24,6 @@ const App = () => {
   const [canvasSize, setCanvasSize] = useState({ width: window.innerWidth/2, height: window.innerHeight - 200 });
   
   const [addOptionState, setAddOptionState] = useState({mode: '', id: -1});
-  const [materialImages, setMaterialImages] = useState({});
   const [newOptionName, setNewOptionName] = useState('');
   const [interiorOptions, setInteriorOptions] = useState([]);
 
@@ -95,7 +95,7 @@ const App = () => {
       console.log(response.data.message);
       setInteriorOptions(interiorOptions.map((option) => {
         if (option.id === addOptionState.id) {
-          return {...option, image: response.data.masked_image}
+          return {...option, image: response.data.masked_image, points: points, }
         } else {
           return option
         }
@@ -207,25 +207,51 @@ const App = () => {
   };
 
 
+  const [dragging, setDragging] = useState(false);
 
-
-
-
-  const addInteriorImage = (e, results, id) => {
-    results.forEach(result => {
-      const [e, file] = result;
-      const reader = new FileReader();
-      reader.onloadend = function () {
-        console.log(reader.result)
-        const newImages = { ...materialImages };
-        if (!newImages[id]) newImages[id] = [];
-        newImages[id].push(reader.result);
-        setMaterialImages(newImages);
-      };
-      reader.readAsDataURL(file);
-    });
+  const add_texture = async (id, texture) => {
+    const newInteriorOptions = await Promise.all(interiorOptions.map(async (option) => {
+      if (option.id == id) {
+        try {
+          const response = await axios.post('/apply_texture', { masked_image : option.image, texture : texture, sessionId : sessionId });
+          console.log(response.data.message)
+          // const sam_image = new Image();
+          // sam_image.src = response.data.sam_result;
+          // sam_image.onload = () => setSamImage(sam_image);
+        } catch (error) {
+          console.error(error);
+        }
+        return {...option, texture: texture }
+      } else {
+        return option
+      }
+    }));
+    setInteriorOptions(newInteriorOptions);
+    setDragging(false);
   }
 
+  const handleFileUpload = (e, id) => {
+    const reader = new FileReader();
+    reader.onloadend = function () {
+      add_texture(id, reader.result);
+    }
+    reader.readAsDataURL(e.target.files[0]);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setDragging(false);
+  };
+
+  const handleFileDrop = async (e, id) => {
+    e.preventDefault();
+    add_texture(id, URL.createObjectURL(e.dataTransfer.files[0]))
+  };
 
   const addOption = () => {
     if(interiorImage == null){
@@ -272,20 +298,32 @@ const App = () => {
           <h2>Interior</h2>
           <input type="text" value={newOptionName} onChange={(e) => setNewOptionName(e.target.value)} />
           <button onClick={addOption}>Add Option</button>
-          {interiorOptions.map(({id, name, image}, i) => (
+          {interiorOptions.map(({id, name, image, texture}, i) => (
             <div style={boxStyle} key={id}>
               <h3>{name}</h3>
                 {
-                  image ? <img key={id} src={image} style={{ width: "100px", height: "100px", objectFit: "cover", margin:"3px" }} />:
+                  image ? 
+                  <div style={{display: "flex", alignItems: "center"}}>
+                    <img key={id+'segment'} src={image} style={{ width: "100px", height: "100px", objectFit: "cover", margin:"3px" }} />
+                    <p style={{margin: "0 20px"}}>+</p>
+                    {texture ?
+                    <img key={id+'texture'} src={texture} style={{ width: "100px", height: "100px", objectFit: "cover", margin:"3px" }} />:
+                    <>
+                      <input type="file" onChange={(e) =>handleFileUpload(e, id)} style={{display:"none"}} id="fileUpload"/>
+                      <label for="fileUpload" style={{...dragging? { 
+                          border: "2px solid blue", 
+                          backgroundColor: "rgba(0, 0, 255, 0.1)" 
+                        } : {}, width: "100px", height: "100px", border: "1px dashed black", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: "5px"}}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={(e) => handleFileDrop(e, id)}>
+                        Upload your<br/>texture<br/>Click or Drag and Drop
+                      </label>
+                    </>
+                  }
+                  </div>:
                   <h5>Indicate a point on the interior for segmentation.</h5>
                 }
-                <FileReaderInput as="binary" onChange={(e, results) => addInteriorImage(e, results, id)}>
-                  <button>Add {name} Image</button>
-                </FileReaderInput>
-              
-              {materialImages[id] && materialImages[id].map((image, index) => (
-                <img key={index} src={image} style={{ width: "100px", height: "100px", objectFit: "cover", margin:"3px"}} />
-              ))}
             </div>
           ))}
         </div>
