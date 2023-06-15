@@ -103,6 +103,10 @@ def apply_texture():
     mask_image = request.json['mask_image']
     sessionId = request.json['sessionId']
     texture = request.json['texture']
+
+    filename = f'{sessionId}/mask_image.png'
+    with open(filename, "wb") as fh:
+        fh.write(base64.decodebytes(mask_image.split(',')[1].encode()))
     
     ## TODO: apply texture to masked image
     return {"message": ""}, 200

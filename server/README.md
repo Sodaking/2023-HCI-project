@@ -14,6 +14,13 @@ OR
 
 After downloading the `vit_h` checkpoint, place it within the `server` folder in your local directory.
 
+Then, install the necessary Python packages. Navigate to the directory containing the requirements.txt file and run the following command in your terminal:
+
+```bash
+pip install -r requirements.txt
+```
+This will install all the dependencies your project needs to run.
+
 ## Execution Instructions
 
 To run the server, use the following command:
