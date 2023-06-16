@@ -3,7 +3,7 @@ import numpy as np
 import sys
 import os
 
-def apply_texture(mask_path, texture_path, tiling):
+def tile_texture(mask_path, texture_path, tiling):
     # Load the mask and tile images
     mask = cv2.imread(mask_path, cv2.IMREAD_UNCHANGED)
     texture = cv2.imread(texture_path)
@@ -24,7 +24,7 @@ def wo_tiling(mask, texture):
     mask_alpha = mask[:,:,3]
 
     # Resize the tile to match the mask dimensions
-    texture = cv2.resize(tile, (mask.shape[1], mask.shape[0]), interpolation=cv2.INTER_LINEAR)
+    texture = cv2.resize(texture, (mask.shape[1], mask.shape[0]), interpolation=cv2.INTER_LINEAR)
 
     # Create a color image from the mask using the alpha channel
     mask_color = cv2.cvtColor(mask_alpha, cv2.COLOR_GRAY2BGR)
@@ -55,7 +55,7 @@ def with_tiling(mask, texture, tiling):
     print("tiled texture shape: ", tiled_texture.shape)
     print("original mask shape: ", mask.shape)
 
-    # cv2.imwrite("./images/tiled_texture.png", tiled_texture)
+    # cv2.imwrite("test/tiled_texture.png", tiled_texture)
 
     # Extract the alpha channel from the mask image
     mask_alpha = mask[:,:,3]
@@ -68,6 +68,8 @@ def with_tiling(mask, texture, tiling):
 
     # Apply the tile texture to the masked region
     textured_mask = np.where(mask_color > 0, resized_tiled_texture, mask_color)
+
+    cv2.imwrite("test/textured_mask.png", textured_mask)
 
     return textured_mask 
 
@@ -91,6 +93,6 @@ if __name__ == '__main__':
     tiling = int(sys.argv[4])
 
     if(tiling < 0): print("Warn: tiling argument should be positive")
-    output = apply_texture(mask, texture, tiling)
+    output = tile_texture(mask, texture, tiling)
     
     cv2.imwrite(output_name, output)
