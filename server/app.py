@@ -5,6 +5,7 @@ import os
 from models.SAM import ImageProcessor
 from models.utils import encode_image_to_base64
 from PIL import Image, ImageDraw
+import texture
 
 
 app = Flask(__name__)
@@ -104,12 +105,31 @@ def apply_texture():
     sessionId = request.json['sessionId']
     texture = request.json['texture']
 
+    filename = f'{sessionId}/texture.png'
+
+    if texture is not None: 
+        #save texture
+        with open(filename, "wb") as fh:
+            fh.write(base64.decodebytes(texture.split(',')[1].encode()))
+        message = f"Texture image uploaded successfully as {filename}\n"
+        print(message)
+        messages += message
+    
+    else: return {"message": "No texture image found"}, 400
+
     filename = f'{sessionId}/mask_image.png'
     with open(filename, "wb") as fh:
         fh.write(base64.decodebytes(mask_image.split(',')[1].encode()))
     
     ## TODO: apply texture to masked image
-    return {"message": ""}, 200
+    mask_path = "mask_image.png"
+    texture_path = "texture.png"
+    tiling = 15  # texture tiling number
+
+    textured_mask = texture.apply_texture(mask_path, texture_path, tiling)
+
+    print("fh type: ", )
+    return {"message": "Texture applied mask saved", "textured_mask": textured_mask}, 200
 
 
 if __name__ == "__main__":

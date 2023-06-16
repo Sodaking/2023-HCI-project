@@ -10,6 +10,5 @@ def encode_image_to_base64(image):
     img.save(img_io, 'PNG')
     img_data = img_io.getvalue()
     encoded_image = "data:image/jpg;base64," + base64.b64encode(img_data).decode('utf-8')
-    
 
     return encoded_image
