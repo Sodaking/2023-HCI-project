@@ -18,12 +18,13 @@ from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input
 import gc
 from keras import backend as K
 import torch
+import random
 
 app = Flask(__name__)
 CORS(app)
 
 image_processor = ImageProcessor()
-print("Model loaded successfully")
+print("SAM loaded successfully")
 model = None
 
 dirs = ['../data/floors', '../data/wallpapers']
@@ -189,7 +190,11 @@ def find_similar_wallpapers():
     return find_similar('../data/wallpapers')
 
 def find_similar(dir):
-    file = request.files['file']
+    file = request.files.get('file')
+    uploaded_features = []
+    if file == None or file.content_length <= 0:
+        return {'similar_images': random.sample(list(image_datasets[dir].keys()), 4)}, 200
+
     file_path = os.path.join('../data/temp', file.filename)
     file.save(file_path)
     uploaded_features = get_image_features(file_path)
@@ -204,11 +209,11 @@ def find_similar(dir):
 
     sorted_similarities = sorted(similarities.items(), key=lambda item: item[1])
 
-    return {'similar_images': [x[0] for x in sorted_similarities[:4]]}
+    return {'similar_images': [x[0] for x in sorted_similarities[:4]]}, 200
 
 @app.route('/data/<path:filename>', methods=['GET'])
 def get_image(filename):
-    return send_from_directory('../data', filename)
+    return send_from_directory('../data', filename), 200
 
 if __name__ == "__main__":
     app.run(host='127.0.0.1', port='5001', debug=True)
