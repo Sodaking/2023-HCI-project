@@ -5,6 +5,9 @@ import os
 from models.SAM import ImageProcessor
 from models.utils import encode_image_to_base64
 from PIL import Image, ImageDraw
+from models.texture import tile_texture
+
+
 import numpy as np
 import pickle
 from scipy.spatial import distance
@@ -154,9 +157,28 @@ def apply_texture():
     mask_image = request.json['mask_image']
     sessionId = request.json['sessionId']
     texture = request.json['texture']
-    
-    ## TODO: apply texture to masked image
-    return {"message": ""}, 200
+
+    messages = ""
+
+    mask_path = f'{sessionId}/mask_image.png'
+    texture_path = f'{sessionId}/texture.png'
+    tiling = 15  # texture tiling number
+
+    if texture is None or mask_image is None:
+        return {"message": "No texture or mask image found"}, 400
+
+    #save texture
+    with open(texture_path, "wb") as fh:
+        fh.write(base64.decodebytes(texture.split(',')[1].encode()))
+
+    with open(mask_path, "wb") as fh:
+        fh.write(base64.decodebytes(mask_image.split(',')[1].encode()))
+
+    textured_mask = tile_texture(mask_path, texture_path, tiling)
+    textured_mask = encode_image_to_base64(textured_mask)
+
+    print("fh type: ", )
+    return {"message": "Texture applied mask saved", "textured_mask": textured_mask}, 200
 
 @app.route('/similar/floors', methods=['POST'])
 def find_similar_floors():

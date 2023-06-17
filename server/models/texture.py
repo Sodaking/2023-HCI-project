@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import sys
 import os
+from PIL import Image
 
 def tile_texture(mask_path, texture_path, tiling):
     # Load the mask and tile images
@@ -17,7 +18,7 @@ def tile_texture(mask_path, texture_path, tiling):
         textured_mask = with_tiling(mask, texture, 10)
         
     cv2.imwrite("./test/textured_mask.png", textured_mask)
-    return textured_mask
+    return cv2.cvtColor(textured_mask, cv2.COLOR_BGRA2RGBA)
 
 def wo_tiling(mask, texture):
     # Extract the alpha channel from the mask image
@@ -55,8 +56,9 @@ def with_tiling(mask, texture, tiling):
     print("tiled texture shape: ", tiled_texture.shape)
     print("original mask shape: ", mask.shape)
 
-    # cv2.imwrite("test/tiled_texture.png", tiled_texture)
+    cv2.imwrite("test/tiled_texture.png", tiled_texture)
 
+    
     # Extract the alpha channel from the mask image
     mask_alpha = mask[:,:,3]
 
@@ -66,12 +68,16 @@ def with_tiling(mask, texture, tiling):
     # Create a color image from the mask using the alpha channel
     mask_color = cv2.cvtColor(mask_alpha, cv2.COLOR_GRAY2BGR)
 
-    # Apply the tile texture to the masked region
-    textured_mask = np.where(mask_color > 0, resized_tiled_texture, mask_color)
+    # Append the alpha channel to the resized tiled texture
+    alpha_channel = np.ones((resized_tiled_texture.shape[0], resized_tiled_texture.shape[1]), dtype=resized_tiled_texture.dtype) * 255 # fully opaque
+    resized_tiled_texture_RGBA = cv2.merge([resized_tiled_texture, alpha_channel])
+    # Append the alpha channel to the mask color image
+    mask_color_RGBA = cv2.merge([mask_color, mask_alpha])
 
-    cv2.imwrite("test/textured_mask.png", textured_mask)
+    # Apply the tile texture to the masked region, for non-masked region set as transparent
+    textured_mask = np.where(mask_color_RGBA > 0, resized_tiled_texture_RGBA, 0)
 
-    return textured_mask 
+    return textured_mask
 
 def recursive_hconcat(texture, concat_texture):
     return cv2.hconcat([concat_texture, texture])
@@ -86,7 +92,7 @@ if __name__ == '__main__':
         sys.exit(1)
 
     # Get the command-line arguments
-    base_dir = "./test/"
+    base_dir = "../"
     mask = os.path.join(base_dir, sys.argv[1])
     texture = os.path.join(base_dir, sys.argv[2])
     output_name = os.path.join(base_dir, sys.argv[3])
