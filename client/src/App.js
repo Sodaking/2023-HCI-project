@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import FileReaderInput from 'react-file-reader-input';
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 import SyncLoader from 'react-spinners/SyncLoader';
@@ -35,40 +34,37 @@ const App = () => {
   const radius = 5;
   
   axios.defaults.baseURL = "http://127.0.0.1:5001";
+  const interiorImageChange = async (e) => {
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    reader.onloadend = async function () {
+      const reader_image = new Image();
+      reader_image.src = reader.result;
+      reader_image.onload = async function (){
+        console.log(reader_image.width, reader_image.height)
 
-  const interiorImageChange = async (e, results) => {
-    results.forEach(result => {
-      const [e, file] = result;
-      const reader = new FileReader();
-      reader.onloadend = async function () {
-        const reader_image = new Image();
-        reader_image.src = reader.result;
-        reader_image.onload = async function (){
-          console.log(reader_image.width, reader_image.height)
+        // 이미지의 가로세로 비율을 계산
+        const hRatio = canvasSize.width / reader_image.width;
+        const vRatio = canvasSize.height / reader_image.height;
+        const ratio  = Math.min(hRatio, vRatio);
+        setImageRatio(ratio);
+        setCanvasSize({ width: reader_image.width * ratio, height: reader_image.height * ratio });
 
-          // 이미지의 가로세로 비율을 계산
-          const hRatio = canvasSize.width / reader_image.width;
-          const vRatio = canvasSize.height / reader_image.height;
-          const ratio  = Math.min(hRatio, vRatio);
-          setImageRatio(ratio);
-          setCanvasSize({ width: reader_image.width * ratio, height: reader_image.height * ratio });
-
-          setInteriorImage(reader_image);
-          setMainImage(reader_image);
-          setImage('interior');
-          try {
-            const response = await axios.post('/upload_interior', { image : reader.result, sessionId : sessionId });
-            console.log(response.data.message)
-            const sam_image = new Image();
-            sam_image.src = response.data.sam_result;
-            sam_image.onload = () => setSamImage(sam_image);
-          } catch (error) {
-            console.error(error);
-          }
+        setInteriorImage(reader_image);
+        setMainImage(reader_image);
+        setImage('interior');
+        try {
+          const response = await axios.post('/upload_interior', { image : reader.result, sessionId : sessionId });
+          console.log(response.data.message)
+          const sam_image = new Image();
+          sam_image.src = response.data.sam_result;
+          sam_image.onload = () => setSamImage(sam_image);
+        } catch (error) {
+          console.error(error);
         }
-      };
-      reader.readAsDataURL(file);
-    });
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const markSegmentPoint = (e) => {
@@ -192,9 +188,9 @@ const App = () => {
       // }
     };
     for (let option of interiorOptions) {
-      if (option.mask_image != null) {
+      if (option.textured_mask != null) {
         const img = new Image();
-        img.src = option.mask_image;
+        img.src = option.textured_mask;
         img.onload = () => {
           // 이미지의 가로세로 비율에 맞게 사이즈를 조정
           const newWidth = img.width * imageRatio;
@@ -225,14 +221,13 @@ const App = () => {
       if (option.id == id) {
         try {
           const response = await axios.post('/apply_texture', { mask_image : option.mask_image, texture : texture, sessionId : sessionId });
-          console.log(response.data.message)
-          // const sam_image = new Image();
-          // sam_image.src = response.data.sam_result;
-          // sam_image.onload = () => setSamImage(sam_image);
+          console.log(response.data)
+          return {...option, texture: texture, textured_mask: response.data.textured_mask }
+
         } catch (error) {
           console.error(error);
         }
-        return {...option, texture: texture }
+        return {...option, texture: texture, textured_mask: null }
       } else {
         return option
       }
@@ -261,7 +256,7 @@ const App = () => {
 
   const handleFileDrop = async (e, id) => {
     e.preventDefault();
-    add_texture(id, URL.createObjectURL(e.dataTransfer.files[0]))
+    handleFileUpload(e, id);
   };
 
   const addOption = () => {
@@ -296,7 +291,7 @@ const App = () => {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1fr 2fr 1fr",
+          gridTemplateColumns: "1fr 1fr",
           gridTemplateRows: "repeat(4, 1fr)",
           gap: "0.5rem",
           height: "100vh",
@@ -305,95 +300,106 @@ const App = () => {
           position: "relative",
         }}
       >
-        <div style={{ gridColumn: "1 / 2", gridRow: "1 / 5", ...boxStyle }}>
-          <h2>Interior</h2>
-          <input type="text" value={newOptionName} onChange={(e) => setNewOptionName(e.target.value)} />
-          <button onClick={addOption}>Add Option</button>
-          {interiorOptions.map(({id, name, mask_image, texture}, i) => (
-            <div style={boxStyle} key={id}>
-              <h3>{name}</h3>
-                {
-                  mask_image ? 
-                  <div style={{display: "flex", alignItems: "center"}}>
-                    <img key={id+'segment'} src={mask_image} style={{ width: "100px", height: "100px", objectFit: "cover", margin:"3px" }} />
-                    <p style={{margin: "0 20px"}}>+</p>
-                    {texture ?
-                    <img key={id+'texture'} src={texture} style={{ width: "100px", height: "100px", objectFit: "cover", margin:"3px" }} />:
-                    <>
-                      <input type="file" onChange={(e) =>handleFileUpload(e, id)} style={{display:"none"}} id="fileUpload"/>
-                      <label for="fileUpload" style={{...dragging? { 
-                          border: "2px solid blue", 
-                          backgroundColor: "rgba(0, 0, 255, 0.1)" 
-                        } : {}, width: "100px", height: "100px", border: "1px dashed black", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: "5px"}}
-                        onDragOver={handleDragOver}
-                        onDragLeave={handleDragLeave}
-                        onDrop={(e) => handleFileDrop(e, id)}>
-                        Upload your<br/>texture<br/>Click or Drag and Drop
-                      </label>
-                    </>
-                  }
-                  </div>:
-                  <h5>Indicate a point on the interior for segmentation.</h5>
-                }
-            </div>
-          ))}
-        </div>
-        <div style={{ gridColumn: "2 / 3", gridRow: "1 / 5", ...boxStyle, position: "relative"}}>
-          <h2>Room Design
-            <button>
-              <span role="img" aria-label="undo">↩️</span>
-            </button>
-            <button>
-              <span role="img" aria-label="redo">↪️</span>
-            </button>
-          </h2>
-          {image !==null ? 
-          <>
-            {image == 'interior'?
-              <button onClick={() => {setImage('sam');setMainImage(samImage)}}>Show SAM</button>:
-              <button onClick={() => {setImage('interior');setMainImage(interiorImage)}}>Show Interior</button>
-            }
-            {
-              image == 'sam' && samImage == null?
-              //div with width: canvasSize.width, height: canvasSize.height
-              <div style={{width: canvasSize.width, height: canvasSize.height, display: "flex", alignItems: "center", justifyContent: "center"}}>
-                <SyncLoader color="#36d7b7"/>
-              </div>:
-              <div>
-                <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center',}}>
-                  <canvas 
-                  ref={canvasRef}
-                  id="canvas" 
-                  width={canvasSize.width} 
-                  height={canvasSize.height}
-                  onMouseDown={addOptionState.mode == 'point' ? markSegmentPoint : null}
-                  // onMouseDown={handleMouseDown}
-                  // onMouseMove={handleMouseMove}
-                  // onMouseUp={handleMouseUp}
-                  // onMouseOut={handleMouseUp}
-                  onContextMenu={(e) => e.preventDefault()}
-                  style={{zIndex:1001}}
-                  // style={addOptionState.mode == 'point' ? {
-                  //   boxShadow: '0 0 0 2000px rgba(0, 0, 0, 0.5)', position: "relative", zIndex: "1" 
-                  // }:null}
-                  />
-                </div>
-                {addOptionState.mode == 'point'?
-                <>
-                  <button onClick={() => setPoints(points.slice(0, -1))} style={{zIndex:1001, position: 'relative', marginTop: "5px"}}>Undo</button>
-                  <button onClick={saveSegmentPoints} style={{zIndex:1001, position: 'relative', marginTop: "5px"}}>Apply</button>
-                </>:null}
-              </div>
-            }
-          </>
-          :
-          <FileReaderInput as="binary" onChange={interiorImageChange}>
-            <button>Select an image</button>
-          </FileReaderInput>
+      <div style={{ gridColumn: "1 / 2", gridRow: "1 / 5", ...boxStyle, position: "relative"}}>
+        <h2>Room Design
+          <button>
+            <span role="img" aria-label="undo">↩️</span>
+          </button>
+          <button>
+            <span role="img" aria-label="redo">↪️</span>
+          </button>
+        </h2>
+        {image !==null ? 
+        <>
+          {image == 'interior'?
+            <button onClick={() => {setImage('sam');setMainImage(samImage)}}>Show SAM</button>:
+            <button onClick={() => {setImage('interior');setMainImage(interiorImage)}}>Show Interior</button>
           }
-        </div>
-        <div style={{ gridColumn: "3 / 4", gridRow: "1 / 5", ...boxStyle }}>
-          <h2>AI Recommend</h2>
+          {
+            image == 'sam' && samImage == null?
+            //div with width: canvasSize.width, height: canvasSize.height
+            <div style={{width: canvasSize.width, height: canvasSize.height, display: "flex", alignItems: "center", justifyContent: "center"}}>
+              <SyncLoader color="#36d7b7"/>
+            </div>:
+            <div>
+              <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center',}}>
+                <canvas 
+                ref={canvasRef}
+                id="canvas" 
+                width={canvasSize.width} 
+                height={canvasSize.height}
+                onMouseDown={addOptionState.mode == 'point' ? markSegmentPoint : null}
+                // onMouseDown={handleMouseDown}
+                // onMouseMove={handleMouseMove}
+                // onMouseUp={handleMouseUp}
+                // onMouseOut={handleMouseUp}
+                onContextMenu={(e) => e.preventDefault()}
+                style={{zIndex:1001}}
+                // style={addOptionState.mode == 'point' ? {
+                //   boxShadow: '0 0 0 2000px rgba(0, 0, 0, 0.5)', position: "relative", zIndex: "1" 
+                // }:null}
+                />
+              </div>
+              {addOptionState.mode == 'point'?
+              <>
+                <button onClick={() => setPoints(points.slice(0, -1))} style={{zIndex:1001, position: 'relative', marginTop: "5px"}}>Undo</button>
+                <button onClick={saveSegmentPoints} style={{zIndex:1001, position: 'relative', marginTop: "5px"}}>Apply</button>
+              </>:null}
+            </div>
+          }
+        </>
+        :
+        <>
+          <input type="file" id="fileInput" onChange={interiorImageChange} multiple style={{display: "none"}} />
+          <button onClick={() => document.getElementById('fileInput').click()}>Upload</button>
+        </>
+        }
+      </div>
+        <div style={{ gridColumn: "2 / 3", gridRow: "1 / 5", ...boxStyle }}>
+          {image !==null ?
+          <>
+            <h2>Interior</h2>
+            <input type="text" value={newOptionName} onChange={(e) => setNewOptionName(e.target.value)} />
+            <button onClick={addOption}>Add Option</button>
+            {interiorOptions.map(({id, name, mask_image, texture, textured_mask}, i) => (
+              <div style={boxStyle} key={id}>
+                <h3>{name}</h3>
+                  {
+                    mask_image ? 
+                    <div style={{display: "flex", alignItems: "center"}}>
+                      <img key={id+'segment'} src={mask_image} style={{ width: "100px", height: "100px", objectFit: "cover", margin:"3px" }} />
+                      <p style={{margin: "0 20px"}}>+</p>
+                      {texture ?
+                      <>
+                        <img key={id+'texture'} src={texture} style={{ width: "100px", height: "100px", objectFit: "cover", margin:"3px" }} />
+                        {
+                          textured_mask ?
+                          <>
+                            <p style={{margin: "0 20px"}}>=</p>
+                            <img key={id+'textured_mask'} src={textured_mask} style={{ width: "100px", height: "100px", objectFit: "cover", margin:"3px" }} />
+                          </>: null
+                        }
+                      </>
+                      :
+                      <>
+                        <input type="file" onChange={(e) =>handleFileUpload(e, id)} style={{display:"none"}} id="fileUpload"/>
+                        <label for="fileUpload" style={{...dragging? { 
+                            border: "2px solid blue", 
+                            backgroundColor: "rgba(0, 0, 255, 0.1)" 
+                          } : {}, width: "100px", height: "100px", border: "1px dashed black", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: "5px"}}
+                          onDragOver={handleDragOver}
+                          onDragLeave={handleDragLeave}
+                          onDrop={(e) => handleFileDrop(e, id)}>
+                          Upload your<br/>texture<br/>Click or Drag and Drop
+                        </label>
+                      </>
+                    }
+                    </div>:
+                    <h5>Indicate a point on the interior for segmentation.</h5>
+                  }
+              </div>
+            ))}
+          </>: null}
         </div>
       </div>
     </>
