@@ -1,30 +1,32 @@
 from flask import Flask, request, send_from_directory, make_response, jsonify
-import base64
-from flask_cors import CORS, cross_origin
-import os
-from models.SAM import ImageProcessor
-from models.utils import encode_image_to_base64
+from keras.preprocessing import image
+from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input
+from keras.models import Model
 from PIL import Image, ImageDraw
+from flask_cors import CORS, cross_origin
 import numpy as np
+import base64
+import os
+import ssl
 import pickle
 from scipy.spatial import distance
 import time
-from keras.preprocessing import image
-from keras.models import Model
-from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input
-import gc
-from keras import backend as K
-import torch
+
+from models.SAM import ImageProcessor
+from models.utils import encode_image_to_base64
+
 
 app = Flask(__name__)
 CORS(app)
+ssl._create_default_https_context = ssl._create_unverified_context
 
 image_processor = ImageProcessor()
+
+base_model = ResNet50(weights='imagenet')
+model = Model(inputs=base_model.input, outputs=base_model.get_layer('avg_pool').output)
 print("Model loaded successfully")
-model = None
-
 dirs = ['../data/floors', '../data/wallpapers']
-
+print("starting script...")
 def get_image_features(image_path):
     img = image.load_img(image_path, target_size=(224, 224))
     x = image.img_to_array(img)
@@ -45,24 +47,17 @@ def preprocess_images(dir):
         pickle.dump(image_dataset, f)
 
     return image_dataset
-
+print("before preprocessing...")
 image_datasets = {}
 
 for dir in dirs:
     if not os.path.isfile(f'{dir}_features.pkl') or os.path.getmtime(f'{dir}_features.pkl') < os.path.getmtime(dir):
-        print('need to processing : ' + str(dir) )
-        if model == None:
-            base_model = ResNet50(weights='imagenet')
-            model = Model(inputs=base_model.input, outputs=base_model.get_layer('avg_pool').output)
         image_datasets[dir] = preprocess_images(dir)
-        
     else:
-        print('no need to processing : ' + str(dir) )
         with open(f'{dir}_features.pkl', 'rb') as f:
             image_datasets[dir] = pickle.load(f)
 
 print("preprocessing done...")
-
 @app.route('/create_directory', methods=['POST'])
 def create_directory():
     sessionId = request.json['sessionId']
@@ -83,7 +78,6 @@ def save_drawing():
     if image is not None:
         messages = ""
 
-        #save image
         with open(filename, "wb") as fh:
             fh.write(base64.decodebytes(image.split(',')[1].encode()))
         message = f"Interior image uploaded successfully as {filename}\n"
@@ -93,8 +87,6 @@ def save_drawing():
         return {"message": messages}, 200
     else:
         return {"message": "No image found"}, 400
-    
-
 
 @app.route('/upload_interior', methods=['POST'])
 def upload_interior():
@@ -106,14 +98,12 @@ def upload_interior():
     if image is not None:
         messages = ""
 
-        #save image
         with open(filename, "wb") as fh:
             fh.write(base64.decodebytes(image.split(',')[1].encode()))
         message = f"Interior image uploaded successfully as {filename}\n"
         print(message)
         messages += message
         
-        #run sam models
         sam_result = image_processor.segment_image(sessionId)
         sam_result = encode_image_to_base64(sam_result)
         message = f"SAM successfully\n"
@@ -123,7 +113,6 @@ def upload_interior():
         return {"message": messages, "sam_result": sam_result}, 200
     else:
         return {"message": "No image found"}, 400
-    
 
 @app.route('/save_segment_points', methods=['POST'])
 def save_segment_points():
@@ -144,10 +133,8 @@ def save_segment_points():
     masked_image, mask_image = image_processor.segment_image_with_point(sessionId, points)
     masked_image = encode_image_to_base64(masked_image)
     mask_image = encode_image_to_base64(mask_image)
-    # image.save(f'{sessionId}/segment_points.png')
 
     return {"message": "Points saved", "masked_image": masked_image, "mask_image": mask_image}, 200
-
 
 @app.route('/apply_texture', methods=['POST'])
 def apply_texture():
@@ -190,3 +177,4 @@ def get_image(filename):
 
 if __name__ == "__main__":
     app.run(host='127.0.0.1', port='5001', debug=True)
+    print("Starting the Flask app")

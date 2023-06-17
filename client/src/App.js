@@ -34,7 +34,7 @@ const App = () => {
 
   const radius = 5;
   
-  axios.defaults.baseURL = "http://127.0.0.1:5001";
+  axios.defaults.baseURL = "http://127.0.0.1:5003";
 
   const interiorImageChange = async (e, results) => {
     results.forEach(result => {
