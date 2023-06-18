@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 import SyncLoader from 'react-spinners/SyncLoader';
+import { Switch } from '@mui/material';
 
 const boxStyle = {
   border: "1px solid #ccc",
@@ -42,7 +43,7 @@ const App = () => {
       const reader_image = new Image();
       reader_image.src = reader.result;
       reader_image.onload = async function (){
-        console.log(reader_image.width, reader_image.height)
+        //console.log(reader_image.width, reader_image.height)
 
         // 이미지의 가로세로 비율을 계산
         const hRatio = canvasSize.width / reader_image.width;
@@ -56,7 +57,7 @@ const App = () => {
         setImage('interior');
         try {
           const response = await axios.post('/upload_interior', { image : reader.result, sessionId : sessionId });
-          console.log(response.data.message)
+          //console.log(response.data.message)
           const sam_image = new Image();
           sam_image.src = response.data.sam_result;
           sam_image.onload = () => setSamImage(sam_image);
@@ -74,13 +75,13 @@ const App = () => {
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    console.log(mainImage.width)
+    //console.log(mainImage.width)
     // 이미지의 가로세로 비율에 따른 좌표 계산
     const imageX = (x - canvasSize.width / 2) / imageRatio + mainImage.width / 2;
     const imageY = (y - canvasSize.height / 2) / imageRatio + mainImage.height / 2;
 
     // 계산된 좌표 출력
-    console.log('Image Coordinate:', imageX, imageY);
+    //console.log('Image Coordinate:', imageX, imageY);
     const newPoints = [...points, { x: imageX, y: imageY, mode: e.nativeEvent.which == 1 ? 1 : 0 }];
     setPoints(newPoints);
     saveSegmentPoints(newPoints);
@@ -112,7 +113,7 @@ const App = () => {
       setMainImage(interiorImage);
       const newInteriorOptions = interiorOptions.map((option) => {
         if (option.id === addOptionState.id) {
-          return {...addOptionState, name: newOptionName, History: addOptionStateHistory}
+          return {...addOptionState, name: newOptionName, History: addOptionStateHistory, apply: true}
         } else {
           return option
         }
@@ -156,7 +157,7 @@ const App = () => {
     }
     const newPoints = points.slice(0,- 1);
     const newAddOptionState = {...addOptionState, mask_image: addOptionState.mask_image_history[addOptionState.mask_image_history.length - 1], masked_image: addOptionState.masked_image_history[addOptionState.masked_image_history.length - 1], masked_image_history: addOptionState.masked_image_history.slice(0,- 1), mask_image_history: addOptionState.mask_image_history.slice(0,- 1), points: newPoints}
-    console.log(newAddOptionState)
+    //console.log(newAddOptionState)
     setPoints(newPoints);
     setAddOptionState(newAddOptionState);
   }
@@ -171,7 +172,7 @@ const App = () => {
     try {
       const canvas = canvasRef.current;
       const response = await axios.post('/save_segment_points', { image : canvas.toDataURL(), points: points, sessionId : sessionId });
-      console.log(response.data.message);
+      //console.log(response.data.message);
       setAddOptionState({...addOptionState, mode: 'point', masked_image: response.data.masked_image, mask_image: response.data.mask_image, mask_image_history: addOptionState.mask_image_history.concat([addOptionState.mask_image]), masked_image_history: addOptionState.masked_image_history.concat([addOptionState.masked_image]), points: points})
       // setInteriorOptions(interiorOptions.map((option) => {
       //   if (option.id === addOptionState.id) {
@@ -208,12 +209,12 @@ const App = () => {
 
   useEffect(() => {
     axios.post('/create_directory', { sessionId : sessionId })
-      .then(response => console.log(response.data))
+      .then(response => null)//console.log(response.data))
       .catch(error => console.error(error));
   }, []);
 
   useEffect(() => {
-    console.log(addOptionState);
+    //console.log(addOptionState);
     if (mainImage == null) {
       if (image == 'interior') {
         setMainImage(interiorImage);
@@ -266,6 +267,20 @@ const App = () => {
           ctx.stroke();
         }
       }
+
+    for (let option of interiorOptions) {
+      if (option.textured_mask != null && option.apply) {
+        const img = new Image();
+        img.src = option.textured_mask;
+        img.onload = () => {
+          // 이미지의 가로세로 비율에 맞게 사이즈를 조정
+          const newWidth = img.width * imageRatio;
+          const newHeight = img.height * imageRatio;
+          ctx.drawImage(img, centerX - newWidth/2, centerY - newHeight/2, newWidth, newHeight);
+        }
+      }
+    }
+
       if (addOptionState.mode != '') {
         if(addOptionState.mask_image != null) {
           const img = new Image();
@@ -289,18 +304,6 @@ const App = () => {
         }
       }
 
-    for (let option of interiorOptions) {
-      if (option.textured_mask != null) {
-        const img = new Image();
-        img.src = option.textured_mask;
-        img.onload = () => {
-          // 이미지의 가로세로 비율에 맞게 사이즈를 조정
-          const newWidth = img.width * imageRatio;
-          const newHeight = img.height * imageRatio;
-          ctx.drawImage(img, centerX - newWidth/2, centerY - newHeight/2, newWidth, newHeight);
-        }
-      }
-    }
         
       // for (let line of lines) {
       //   ctx.beginPath();
@@ -318,7 +321,7 @@ const App = () => {
       const canvas = canvasRef.current;
       const image_drawing = canvas.toDataURL();
       const response = await axios.post('/save_drawing', { image : image_drawing, sessionId : sessionId });
-      console.log(response.data.message);
+      //console.log(response.data.message);
     } catch (error) {
       console.error(error);
     }
@@ -332,7 +335,7 @@ const App = () => {
       if (option.id == id) {
         try {
           const response = await axios.post('/apply_texture', { mask_image : option.mask_image, texture : texture, sessionId : sessionId });
-          console.log(response.data)
+          //console.log(response.data)
           return {...option, texture: texture, textured_mask: response.data.textured_mask }
 
         } catch (error) {
@@ -357,8 +360,8 @@ const App = () => {
         axios.post('/apply_texture', { mask_image: addOptionState.mask_image, texture: texture, sessionId: sessionId })
       ]);
     
-      console.log(similarResponse.data);
-      console.log(textureResponse.data);
+      //console.log(similarResponse.data);
+      //console.log(textureResponse.data);
     
       newAddOptionState = {
         ...newAddOptionState,
@@ -385,7 +388,7 @@ const App = () => {
     reader.readAsDataURL(e.target.files[0]);
   };
   const handleFileUpload2 = (e) => {
-    console.log(e.target)
+    //console.log(e.target)
     const reader = new FileReader();
     reader.onloadend = function () {
       add_texture2(reader.result);
@@ -439,14 +442,7 @@ const App = () => {
         }}
       >
       <div style={{ gridColumn: "1 / 2", gridRow: "1 / 5", ...boxStyle, position: "relative"}}>
-        <h2>Room Design
-          <button>
-            <span role="img" aria-label="undo">↩️</span>
-          </button>
-          <button>
-            <span role="img" aria-label="redo">↪️</span>
-          </button>
-        </h2>
+        <h2>Room Design</h2>
         {image !==null ? 
         <>
           {image == 'interior'?
@@ -546,20 +542,20 @@ const App = () => {
                       if(addOptionState.texture == null){
                         try {
                           const res = await axios.post('/similar', {type: newOptionName, sessionId: sessionId, texture: null});
-                          console.log(res.data);
+                          //console.log(res.data);
                           setAddOptionState({...addOptionState, mode:'texture', recommend: res.data.similar_images});
                         }
                         catch (err) {
-                          console.log(err);
+                          //console.log(err);
                         }
                       } else {
                         try {
                           const res = await axios.post('/apply_texture', { mask_image: addOptionState.mask_image, texture: addOptionState.texture, sessionId: sessionId })
-                          console.log(res.data);
+                          //console.log(res.data);
                           setAddOptionState({...addOptionState, mode: 'texture', textured_mask: res.data.textured_mask});
                         }
                         catch (err) {
-                          console.log(err);
+                          //console.log(err);
                         }
                       }
                     }} disabled={addOptionState.mode == 'loading' || points.length == 0}>Apply</button>
@@ -616,6 +612,18 @@ const App = () => {
                     </>
                     }
                     <div></div>
+                    <button onClick={async () => {
+                      setAddOptionStateHistory([]);
+                      try {
+                        const res = await axios.post('/similar', {type: newOptionName, sessionId: sessionId, texture: null});
+                        //console.log(res.data);
+                        setAddOptionState({...addOptionState, mode:'texture', recommend: res.data.similar_images, texture: null, textured_mask: null});
+                      }
+                      catch (err) {
+                        //console.log(err);
+                      }
+                    }} disabled={addOptionState.mode == 'textured_loading'}>Clear</button>
+
                     <button onClick={() => {
                       if(addOptionStateHistory.length == 0){
                         alert('더 이상 되돌릴 수 없습니다.');
@@ -637,7 +645,7 @@ const App = () => {
                 <h2>Interior</h2>
                 <button onClick={() => addOption(-1)} style={{marginLeft: '20px'}}>+</button>
               </div>
-              {interiorOptions.map(({id, name, mask_image, texture, textured_mask}, i) => (
+              {interiorOptions.map(({id, name, mask_image, texture, textured_mask, apply}, i) => (
                 <div style={{...boxStyle, position: 'relative'}} key={id}>
                   <div style={{
                     position: 'absolute',
@@ -652,7 +660,16 @@ const App = () => {
                   }}>
                     X
                   </div>
-                  <h3>{name}</h3>
+                  <h3>{name} 
+                    <Switch checked={apply} onChange={() => {
+                      setInteriorOptions(interiorOptions.map((option) => {
+                        if(option.id == id){
+                          return {...option, apply: !option.apply};
+                        }
+                        return option;
+                      }));
+                    }}></Switch>
+                  </h3>
                   <div style={{display: "flex", alignItems: "center", justifyContent:'center'}}>
                     <img key={id+'segment'} src={mask_image} style={{ width: "100px", height: "100px", objectFit: "cover", margin:"3px", border: "0.5px solid black" }} onClick={() => addOption(id)}/>
                     <p style={{margin: "0 20px"}}>+</p>
