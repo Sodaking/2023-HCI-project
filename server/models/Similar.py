@@ -88,4 +88,4 @@ class FindSimilar:
           similarities[img_path] = dist
 
       sorted_similarities = sorted(similarities.items(), key=lambda item: item[1])
-      return [x[0] for x in sorted_similarities[:4]]
+      return [x[0] for x in sorted_similarities[1:5]]
