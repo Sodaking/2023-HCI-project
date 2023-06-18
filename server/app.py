@@ -2,70 +2,21 @@ from flask import Flask, request, send_from_directory, make_response, jsonify
 import base64
 from flask_cors import CORS, cross_origin
 import os
-from models.SAM import ImageProcessor
-from models.utils import encode_image_to_base64
 from PIL import Image, ImageDraw
+
+from models.SAM import ImageProcessor
+from models.utils import encode_image_to_base64, encode_image_to_base64_from_path
 from models.texture import tile_texture
+from models.Similar import FindSimilar
 
-
-import numpy as np
-import pickle
-from scipy.spatial import distance
-import time
-from keras.preprocessing import image
-from keras.models import Model
-from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input
-import gc
-from keras import backend as K
-import torch
-import random
 
 app = Flask(__name__)
 CORS(app)
 
 image_processor = ImageProcessor()
+find_similar = FindSimilar()
 print("SAM loaded successfully")
-model = None
 
-dirs = ['../data/floors', '../data/wallpapers']
-
-def get_image_features(image_path):
-    img = image.load_img(image_path, target_size=(224, 224))
-    x = image.img_to_array(img)
-    x = np.expand_dims(x, axis=0)
-    x = preprocess_input(x)
-    features = model.predict(x)
-    return features[0]
-
-def preprocess_images(dir):
-    image_dataset = {}
-    for filename in os.listdir(dir):
-        if filename.endswith(".jpg") or filename.endswith(".png"): 
-            file_path = os.path.join(dir, filename)
-            image_dataset[file_path] = get_image_features(file_path)
-            print(file_path + ": " + str(image_dataset[file_path]))
-
-    with open(f'{dir}_features.pkl', 'wb') as f:
-        pickle.dump(image_dataset, f)
-
-    return image_dataset
-
-image_datasets = {}
-
-for dir in dirs:
-    if not os.path.isfile(f'{dir}_features.pkl') or os.path.getmtime(f'{dir}_features.pkl') < os.path.getmtime(dir):
-        print('need to processing : ' + str(dir) )
-        if model == None:
-            base_model = ResNet50(weights='imagenet')
-            model = Model(inputs=base_model.input, outputs=base_model.get_layer('avg_pool').output)
-        image_datasets[dir] = preprocess_images(dir)
-        
-    else:
-        print('no need to processing : ' + str(dir) )
-        with open(f'{dir}_features.pkl', 'rb') as f:
-            image_datasets[dir] = pickle.load(f)
-
-print("preprocessing done...")
 
 @app.route('/create_directory', methods=['POST'])
 def create_directory():
@@ -181,39 +132,30 @@ def apply_texture():
     print("fh type: ", )
     return {"message": "Texture applied mask saved", "textured_mask": textured_mask}, 200
 
-@app.route('/similar/floors', methods=['POST'])
-def find_similar_floors():
-    return find_similar('../data/floors')
+@app.route('/similar', methods=['POST'])
+def similar():
+    option_type = request.json['type']
+    option_type = 'floors' if option_type == 'Floor' else "wallpapers"
+    sessionId = request.json['sessionId']
+    texture = request.json['texture']
 
-@app.route('/similar/wallpapers', methods=['POST'])
-def find_similar_wallpapers():
-    return find_similar('../data/wallpapers')
+    if texture is None:
+        texture_path = None
+    else:
+        texture_path = f'{sessionId}/similar_texture.png'
+        with open(texture_path, "wb") as fh:
+            fh.write(base64.decodebytes(texture.split(',')[1].encode()))
+    print(texture_path)
 
-def find_similar(dir):
-    file = request.files.get('file')
-    uploaded_features = []
-    if file == None or file.content_length <= 0:
-        return {'similar_images': random.sample(list(image_datasets[dir].keys()), 4)}, 200
-
-    file_path = os.path.join('../data/temp', file.filename)
-    file.save(file_path)
-    uploaded_features = get_image_features(file_path)
-    print("Processed image: ", file_path)
-    os.remove(file_path)
-
-    similarities = {}
-    image_dataset = image_datasets[dir]
-    for img_path, img_features in image_dataset.items():
-        dist = distance.euclidean(uploaded_features, img_features)
-        similarities[img_path] = dist
-
-    sorted_similarities = sorted(similarities.items(), key=lambda item: item[1])
-
-    return {'similar_images': [x[0] for x in sorted_similarities[:4]]}, 200
+    similar_paths = find_similar.get_similar(texture_path, f'data/{option_type}')
+    similar_images = []
+    for path in similar_paths:
+        similar_images.append(encode_image_to_base64_from_path(path))
+    return {"message": "Similar images found", "similar_images": similar_images}, 200
 
 @app.route('/data/<path:filename>', methods=['GET'])
 def get_image(filename):
-    return send_from_directory('../data', filename), 200
+    return send_from_directory('data', filename), 200
 
 if __name__ == "__main__":
     app.run(host='127.0.0.1', port='5001', debug=True)
