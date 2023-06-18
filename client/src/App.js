@@ -11,8 +11,8 @@ const boxStyle = {
 };
 
 const App = () => {
-  // const [sessionId, setSessionId] = useState(uuidv4().toString());
-  const sessionId = "test";
+  const [sessionId, setSessionId] = useState('individual/'+uuidv4().toString());
+  // const sessionId = "test";
   const [enabled, setEnabled] = useState(false)
   const [image, setImage] = useState(null);
   const [mainImage, setMainImage] = useState(null);
@@ -623,8 +623,8 @@ const App = () => {
                       }
                       setAddOptionState(addOptionStateHistory[addOptionStateHistory.length - 1]);
                       setAddOptionStateHistory(addOptionStateHistory.slice(0, addOptionStateHistory.length - 1));
-                    }}>Undo</button>
-                    <button onClick={() => addOption(-2)}>Apply</button>
+                    }} disabled={addOptionState.mode == 'textured_loading'}>Undo</button>
+                    <button onClick={() => addOption(-2)} disabled={addOptionState.mode == 'textured_loading'}>Apply</button>
                   </>
                   }
                 </>
